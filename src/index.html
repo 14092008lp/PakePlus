@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestor de Gastos · Carteras</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0f1117;--card:#181b25;--card-2:#1f2331;
+  --accent:#4f8cff;--accent-2:#22c55e;--warn:#f59e0b;
+  --danger:#ef4444;--text:#e6e8ee;--muted:#8b90a0;
+  --border:#2a2f3f;--espejo:#a855f7;--global:#ffd93d;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:20px}
+.app{max-width:1400px;margin:0 auto}
+
+header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:16px 20px;background:var(--card);border-radius:14px;
+  margin-bottom:20px;border:1px solid var(--border);flex-wrap:wrap;gap:16px;
+}
+header h1{font-size:1.3rem;display:flex;align-items:center;gap:10px}
+.global-balance{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.global-balance .label{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.5px}
+.global-balance .value{font-size:1.3rem;font-weight:600;color:var(--global)}
+
+.tabs{
+  display:flex;gap:6px;background:var(--card);padding:6px;
+  border-radius:12px;margin-bottom:20px;border:1px solid var(--border);
+  overflow-x:auto;
+}
+.tab{
+  padding:10px 18px;border:none;background:transparent;color:var(--muted);
+  cursor:pointer;border-radius:8px;font-size:.9rem;font-weight:500;
+  white-space:nowrap;transition:all .2s;font-family:inherit;
+}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--accent);color:#fff}
+.view{display:none}
+.view.active{display:block}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+@media(max-width:900px){.grid,.grid-3{grid-template-columns:1fr}}
+
+.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px}
+.panel h2{font-size:1rem;margin-bottom:16px;display:flex;align-items:center;gap:8px;justify-content:space-between}
+.panel h2 .left{display:flex;align-items:center;gap:8px}
+.panel h3{font-size:.9rem;margin-bottom:12px;color:var(--muted)}
+
+label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:4px}
+input,select,textarea{
+  width:100%;padding:10px 12px;background:var(--card-2);
+  border:1px solid var(--border);border-radius:8px;color:var(--text);
+  font-size:.9rem;outline:none;transition:border .2s;font-family:inherit;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+.field{margin-bottom:12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+.dias-picker{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.dias-picker label{
+  display:flex;align-items:center;gap:6px;padding:8px 12px;
+  background:var(--card-2);border:1px solid var(--border);
+  border-radius:8px;cursor:pointer;color:var(--text);font-size:.85rem;
+  margin:0;transition:all .2s;
+}
+.dias-picker input{width:auto;margin:0}
+.dias-picker label:has(input:checked){
+  background:var(--accent);border-color:var(--accent);color:#fff;
+}
+
+button{
+  padding:10px 16px;border:none;border-radius:8px;background:var(--accent);
+  color:#fff;font-size:.9rem;cursor:pointer;font-weight:500;
+  transition:opacity .2s;font-family:inherit;
+}
+button:hover{opacity:.9}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.secondary{background:var(--card-2);border:1px solid var(--border);color:var(--text)}
+button.danger{background:var(--danger)}
+button.success{background:var(--accent-2)}
+button.espejo{background:var(--espejo)}
+button.global-btn{background:var(--global);color:#000}
+button.full{width:100%}
+button.sm{padding:6px 10px;font-size:.78rem}
+
+.carteras-list{display:flex;flex-direction:column;gap:12px}
+.cartera-item{
+  background:var(--card-2);border:1px solid var(--border);
+  border-radius:10px;padding:14px;transition:border .2s;
+}
+.cartera-item:hover{border-color:var(--accent)}
+.cartera-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.cartera-nombre{display:flex;align-items:center;gap:8px;font-weight:600;font-size:.95rem}
+.cartera-dias{font-size:.75rem;color:var(--muted);display:flex;gap:4px;flex-wrap:wrap}
+.dia-tag{background:var(--card);padding:2px 6px;border-radius:4px;border:1px solid var(--border)}
+.cartera-saldos{display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted);margin-bottom:8px}
+.cartera-saldos strong{color:var(--text)}
+.progress{height:8px;background:var(--card);border-radius:4px;overflow:hidden;margin-bottom:8px}
+.progress-bar{height:100%;background:var(--accent-2);transition:width .3s ease}
+.progress-bar.warn{background:var(--warn)}
+.progress-bar.danger{background:var(--danger)}
+.cartera-actions{
+  display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;
+  padding-top:8px;border-top:1px solid var(--border);
+}
+
+.tabla-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{padding:10px;text-align:left;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-weight:500;font-size:.78rem;text-transform:uppercase}
+tr:hover td{background:var(--card-2)}
+.td-monto{text-align:right;font-weight:600}
+.td-acciones{text-align:right}
+
+.chart-container{position:relative;height:280px;margin-top:10px}
+
+.modal{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);
+  display:none;align-items:center;justify-content:center;
+  z-index:100;padding:20px;
+}
+.modal.active{display:flex}
+.modal-content{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:14px;padding:24px;max-width:520px;width:100%;
+  max-height:90vh;overflow-y:auto;
+}
+.modal-content h3{margin-bottom:16px;font-size:1.1rem}
+.modal-actions{display:flex;gap:10px;margin-top:16px}
+
+.toast-container{
+  position:fixed;top:20px;right:20px;display:flex;
+  flex-direction:column;gap:10px;z-index:200;max-width:340px;
+}
+.toast{
+  background:var(--card);border-left:4px solid var(--accent);
+  padding:12px 18px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.4);
+  font-size:.9rem;animation:slideIn .3s ease;
+}
+.toast.warn{border-left-color:var(--warn)}
+.toast.danger{border-left-color:var(--danger)}
+.toast.success{border-left-color:var(--accent-2)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+.ticket-preview{
+  background:#fff;color:#000;padding:20px;border-radius:8px;
+  font-family:'Courier New',monospace;font-size:.78rem;
+  white-space:pre-wrap;max-height:380px;overflow-y:auto;margin:12px 0;
+}
+
+.empty-state{text-align:center;color:var(--muted);padding:30px;font-size:.9rem}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:.7rem;background:var(--card);border:1px solid var(--border)}
+.badge.espejo{background:var(--espejo);color:#fff;border-color:var(--espejo)}
+.badge.global{background:var(--global);color:#000;border-color:var(--global)}
+
+.stat-card{background:var(--card-2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
+.stat-card .label{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.stat-card .value{font-size:1.4rem;font-weight:600}
+.stat-card .value.green{color:var(--accent-2)}
+.stat-card .value.red{color:var(--danger)}
+.stat-card .value.yellow{color:var(--warn)}
+.stat-card .value.gold{color:var(--global)}
+
+.filters{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.filters input,.filters select{flex:1;min-width:150px}
+
+.espejo-lista{display:flex;flex-direction:column;gap:4px;font-size:.8rem}
+.espejo-lista .item{
+  display:flex;justify-content:space-between;padding:6px 10px;
+  background:var(--card-2);border-radius:6px;
+}
+
+.saldo-info{
+  background:var(--card-2);border-radius:8px;padding:10px 14px;
+  margin-bottom:12px;font-size:.85rem;display:flex;
+  justify-content:space-between;
+}
+.saldo-info strong{color:var(--global)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>💰 Gestor de Gastos</h1>
+    <div class="global-balance">
+      <div>
+        <div class="label">🌐 Saldo Global</div>
+        <div class="value" id="globalBalance">$0.00</div>
+      </div>
+      <button class="global-btn" onclick="abrirModalDeposito()">💵 Depositar</button>
+      <button class="secondary" onclick="abrirModalRetiro()">💸 Retirar</button>
+      <button class="secondary" onclick="abrirModalTransferir()">🔄 Transferir</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-view="dashboard">📊 Dashboard</button>
+    <button class="tab" data-view="global">🌐 Global</button>
+    <button class="tab" data-view="carteras">🏦 Carteras</button>
+    <button class="tab" data-view="movimientos">📝 Movimientos</button>
+    <button class="tab" data-view="graficos">📈 Gráficos</button>
+    <button class="tab" data-view="config">⚙️ Configuración</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="view active" id="view-dashboard">
+    <div class="grid-3" style="margin-bottom:20px">
+      <div class="stat-card">
+        <div class="label">🌐 Saldo global</div>
+        <div class="value gold" id="statGlobal">$0.00</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">🏦 Suma en carteras</div>
+        <div class="value green" id="statCarteras">$0.00</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">💰 Patrimonio total</div>
+        <div class="value green" id="statPatrimonio">$0.00</div>
+      </div>
+    </div>
+    <div class="grid-3" style="margin-bottom:20px">
+      <div class="stat-card">
+        <div class="label">📉 Gastado (periodo)</div>
+        <div class="value red" id="statGastado">$0.00</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">🪞 Planeado (espejo)</div>
+        <div class="value yellow" id="statPlaneado">$0.00</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">📊 Diferencia</div>
+        <div class="value" id="statDiferencia">$0.00</div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="panel">
+        <h2><div class="left">📊 Distribución por cartera</div></h2>
+        <div class="chart-container"><canvas id="chartPastel"></canvas></div>
+      </div>
+      <div class="panel">
+        <h2><div class="left">📈 Gasto por día de la semana</div></h2>
+        <div class="chart-container"><canvas id="chartSemana"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GLOBAL -->
+  <div class="view" id="view-global">
+    <div class="grid">
+      <div class="panel">
+        <h2>
+          <div class="left">🌐 Cartera Global</div>
+          <span class="badge global">Raíz</span>
+        </h2>
+        <div style="text-align:center;padding:20px 0">
+          <div style="font-size:.85rem;color:var(--muted);margin-bottom:8px">SALDO DISPONIBLE</div>
+          <div style="font-size:2.4rem;font-weight:700;color:var(--global)" id="globalBigBalance">$0.00</div>
+        </div>
+        <div class="cartera-actions" style="justify-content:center">
+          <button class="global-btn" onclick="abrirModalDeposito()">💵 Depositar</button>
+          <button class="secondary" onclick="abrirModalRetiro()">💸 Retirar</button>
+          <button class="secondary" onclick="abrirModalTransferir()">🔄 Transferir</button>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:24px 0">
+
+        <h3>🪞 Espejo Global (Planificación)</h3>
+        <p style="color:var(--muted);font-size:.8rem;margin-bottom:12px">
+          Planea cuánto distribuirás a las carteras este rango.
+        </p>
+        <div class="row">
+          <div class="field">
+            <label>Monto planeado ($)</label>
+            <input id="espejoGlobalMonto" type="number" placeholder="0.00" min="0" step="0.01">
+          </div>
+          <div class="field">
+            <label>Día</label>
+            <select id="espejoGlobalDia">
+              <option value="lun">Lun</option><option value="mar">Mar</option>
+              <option value="mie">Mié</option><option value="jue">Jue</option>
+              <option value="vie">Vie</option><option value="sab">Sáb</option>
+              <option value="dom">Dom</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Descripción</label>
+          <input id="espejoGlobalDesc" placeholder="Ej: Distribución semanal">
+        </div>
+        <button class="espejo full" onclick="agregarEspejoGlobal()">+ Añadir planeación global</button>
+      </div>
+
+      <div class="panel">
+        <h2><div class="left">📋 Planeaciones globales</div></h2>
+        <div id="espejoGlobalLista"></div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+        <div class="cartera-saldos">
+          <span>Total planeado:</span>
+          <strong id="espejoGlobalTotal">$0.00</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARTERAS -->
+  <div class="view" id="view-carteras">
+    <div class="grid">
+      <div>
+        <div class="panel">
+          <h2><div class="left">➕ Nueva Cartera</div></h2>
+          <div class="field">
+            <label>Nombre</label>
+            <input id="nuevaNombre" placeholder="Ej: Comida">
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Icono</label>
+              <input id="nuevoIcono" placeholder="🍔" maxlength="2" value="📁">
+            </div>
+            <div class="field">
+              <label>Color</label>
+              <input id="nuevoColor" type="color" value="#4f8cff">
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Aproximado ($)</label>
+              <input id="nuevoAproximado" type="number" placeholder="900" min="0">
+            </div>
+            <div class="field">
+              <label>Saldo inicial ($)</label>
+              <input id="nuevoSaldoInicial" type="number" placeholder="0" min="0" step="0.01">
+            </div>
+          </div>
+          <div class="field">
+            <label>Días del rango</label>
+            <div class="dias-picker" id="diasPicker">
+              <label><input type="checkbox" value="lun">Lun</label>
+              <label><input type="checkbox" value="mar">Mar</label>
+              <label><input type="checkbox" value="mie">Mié</label>
+              <label><input type="checkbox" value="jue">Jue</label>
+              <label><input type="checkbox" value="vie">Vie</label>
+              <label><input type="checkbox" value="sab">Sáb</label>
+              <label><input type="checkbox" value="dom">Dom</label>
+            </div>
+          </div>
+          <button class="full success" onclick="crearCartera()">Crear Cartera</button>
+          <p style="font-size:.75rem;color:var(--muted);margin-top:8px;text-align:center">
+            El saldo inicial se descuenta de la cartera Global.
+            <br>Saldo Global disponible: <strong id="globalDisponibleForm" style="color:var(--global)">$0.00</strong>
+          </p>
+        </div>
+      </div>
+      <div>
+        <div class="panel">
+          <h2><div class="left">🏦 Carteras</div><span class="badge" id="countCarteras">0</span></h2>
+          <div class="carteras-list" id="carterasList">
+            <div class="empty-state">Sin carteras todavía</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOVIMIENTOS -->
+  <div class="view" id="view-movimientos">
+    <div class="panel">
+      <h2>
+        <div class="left">📝 Historial</div>
+        <button class="secondary sm" onclick="exportarCSV()">⬇️ CSV</button>
+      </h2>
+      <div class="filters">
+        <input id="filtroBusqueda" placeholder="🔍 Buscar..." oninput="renderMovimientos()">
+        <select id="filtroCartera" onchange="renderMovimientos()">
+          <option value="">Todas las carteras</option>
+        </select>
+        <select id="filtroTipo" onchange="renderMovimientos()">
+          <option value="">Todos los tipos</option>
+          <option value="gasto">Gasto</option>
+          <option value="deposito">Depósito</option>
+          <option value="retiro">Retiro</option>
+          <option value="transferencia_in">Transferencia entrada</option>
+          <option value="transferencia_out">Transferencia salida</option>
+        </select>
+        <input id="filtroDesde" type="date" onchange="renderMovimientos()">
+        <input id="filtroHasta" type="date" onchange="renderMovimientos()">
+      </div>
+      <div class="tabla-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th><th>Día</th><th>Cartera</th>
+              <th>Tipo</th><th>Descripción</th>
+              <th style="text-align:right">Monto</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="movimientosBody">
+            <tr><td colspan="7" class="empty-state">Sin movimientos</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- GRÁFICOS -->
+  <div class="view" id="view-graficos">
+    <div class="panel">
+      <h2><div class="left">📈 Análisis</div></h2>
+      <div class="filters">
+        <select id="chartCarteraFiltro" onchange="renderAllCharts()">
+          <option value="">Todas las carteras</option>
+        </select>
+        <select id="chartEscala" onchange="renderAllCharts()">
+          <option value="diaSemana">Por día de semana</option>
+          <option value="dia">Por día del mes</option>
+          <option value="mes">Por mes</option>
+        </select>
+      </div>
+      <div class="grid">
+        <div>
+          <h3>Gasto en el tiempo</h3>
+          <div class="chart-container"><canvas id="chartTiempo"></canvas></div>
+        </div>
+        <div>
+          <h3>Real vs Espejo</h3>
+          <div class="chart-container"><canvas id="chartComparativa"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIG -->
+  <div class="view" id="view-config">
+    <div class="panel">
+      <h2><div class="left">⚙️ Configuración</div></h2>
+      <div class="row">
+        <div class="field">
+          <label>Umbral advertencia (%)</label>
+          <input id="cfgWarn" type="number" min="0" max="100" value="80">
+        </div>
+        <div class="field">
+          <label>Umbral crítico (%)</label>
+          <input id="cfgDanger" type="number" min="0" max="100" value="100">
+        </div>
+      </div>
+      <button onclick="guardarConfig()">Guardar configuración</button>
+      <hr style="border:none;border-top:1px solid var(--border);margin:24px 0">
+      <h3>💾 Backup</h3>
+      <div class="grid-3">
+        <button class="secondary" onclick="exportarJSON()">⬇️ Exportar JSON</button>
+        <button class="secondary" onclick="document.getElementById('importFile').click()">⬆️ Importar JSON</button>
+        <button class="danger" onclick="borrarTodo()">🗑️ Borrar todo</button>
+      </div>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importarJSON(event)">
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: INSERTAR GASTO -->
+<div class="modal" id="modalInsertar">
+  <div class="modal-content">
+    <h3 id="modalInsertarTitulo">Insertar gasto</h3>
+    <div class="saldo-info">
+      <span>Saldo disponible en esta cartera:</span>
+      <strong id="modalSaldoDisponible">$0.00</strong>
+    </div>
+    <div class="field"><label>Monto ($)</label>
+      <input id="insertMonto" type="number" placeholder="0.00" min="0" step="0.01"></div>
+    <div class="field"><label>Descripción</label>
+      <input id="insertDesc" placeholder="Ej: Café"></div>
+    <div class="modal-actions">
+      <button class="full success" onclick="confirmarInsertar()">Registrar</button>
+      <button class="full secondary" onclick="cerrarModal('modalInsertar')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDITAR CARTERA -->
+<div class="modal" id="modalEditar">
+  <div class="modal-content">
+    <h3>✏️ Editar Cartera</h3>
+    <input type="hidden" id="editId">
+    <div class="field"><label>Nombre</label><input id="editNombre"></div>
+    <div class="row">
+      <div class="field"><label>Icono</label><input id="editIcono" maxlength="2"></div>
+      <div class="field"><label>Color</label><input id="editColor" type="color"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Aproximado ($)</label><input id="editAproximado" type="number" min="0"></div>
+      <div class="field"><label>Saldo actual ($)</label><input id="editSaldo" type="number" min="0" step="0.01"></div>
+    </div>
+    <div class="field">
+      <label>Días</label>
+      <div class="dias-picker" id="editDiasPicker">
+        <label><input type="checkbox" value="lun">Lun</label>
+        <label><input type="checkbox" value="mar">Mar</label>
+        <label><input type="checkbox" value="mie">Mié</label>
+        <label><input type="checkbox" value="jue">Jue</label>
+        <label><input type="checkbox" value="vie">Vie</label>
+        <label><input type="checkbox" value="sab">Sáb</label>
+        <label><input type="checkbox" value="dom">Dom</label>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="full" onclick="confirmarEditar()">Guardar</button>
+      <button class="full secondary" onclick="cerrarModal('modalEditar')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ESPEJO CARTERA -->
+<div class="modal" id="modalEspejoCartera">
+  <div class="modal-content">
+    <h3 id="modalEspejoTitulo">🪞 Espejo de cartera</h3>
+    <input type="hidden" id="espejoCarteraId">
+    <div class="row">
+      <div class="field"><label>Monto ($)</label>
+        <input id="espejoMonto" type="number" placeholder="0.00" min="0" step="0.01"></div>
+      <div class="field"><label>Día</label>
+        <select id="espejoDia">
+          <option value="lun">Lun</option><option value="mar">Mar</option>
+          <option value="mie">Mié</option><option value="jue">Jue</option>
+          <option value="vie">Vie</option><option value="sab">Sáb</option>
+          <option value="dom">Dom</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Descripción</label>
+      <input id="espejoDesc" placeholder="Ej: Súper"></div>
+    <div class="modal-actions">
+      <button class="full espejo" onclick="confirmarEspejo()">Añadir</button>
+      <button class="full secondary" onclick="cerrarModal('modalEspejoCartera')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DEPÓSITO -->
+<div class="modal" id="modalDeposito">
+  <div class="modal-content">
+    <h3>💵 Depositar a Global</h3>
+    <div class="field"><label>Monto ($)</label>
+      <input id="depMonto" type="number" placeholder="0.00" min="0" step="0.01"></div>
+    <div class="field"><label>Descripción</label>
+      <input id="depDesc" placeholder="Ej: Sueldo"></div>
+    <div class="modal-actions">
+      <button class="full success" onclick="confirmarDeposito()">Depositar</button>
+      <button class="full secondary" onclick="cerrarModal('modalDeposito')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: RETIRO -->
+<div class="modal" id="modalRetiro">
+  <div class="modal-content">
+    <h3>💸 Retirar de Global</h3>
+    <div class="field"><label>Monto ($)</label>
+      <input id="retMonto" type="number" placeholder="0.00" min="0" step="0.01"></div>
+    <div class="field"><label>Descripción</label>
+      <input id="retDesc" placeholder="Ej: Retiro cajero"></div>
+    <div class="modal-actions">
+      <button class="full danger" onclick="confirmarRetiro()">Retirar</button>
+      <button class="full secondary" onclick="cerrarModal('modalRetiro')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: TRANSFERIR -->
+<div class="modal" id="modalTransferir">
+  <div class="modal-content">
+    <h3>🔄 Transferir</h3>
+    <div class="field"><label>Desde</label>
+      <select id="transOrigen"></select></div>
+    <div class="field"><label>Hacia</label>
+      <select id="transDestino"></select></div>
+    <div class="field"><label>Monto ($)</label>
+      <input id="transMonto" type="number" placeholder="0.00" min="0" step="0.01"></div>
+    <div class="modal-actions">
+      <button class="full" onclick="confirmarTransferencia()">Transferir</button>
+      <button class="full secondary" onclick="cerrarModal('modalTransferir')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: TICKET -->
+<div class="modal" id="modalTicket">
+  <div class="modal-content" style="max-width:640px">
+    <h3>🎫 Ticket</h3>
+    <div id="ticketPreview" class="ticket-preview"></div>
+    <div class="modal-actions">
+      <button class="full success" onclick="descargarTicketPDF()">📄 PDF</button>
+      <button class="full" onclick="descargarTicket()">⬇️ TXT</button>
+      <button class="full secondary" onclick="cerrarModal('modalTicket')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+/* ============================================================
+   CONSTANTES
+============================================================ */
+const DIAS_ORDEN = ['lun','mar','mie','jue','vie','sab','dom'];
+const DIAS_LABEL = {lun:'Lun',mar:'Mar',mie:'Mié',jue:'Jue',vie:'Vie',sab:'Sáb',dom:'Dom'};
+const GLOBAL_ID = 0;
+
+/* ============================================================
+   ESTADO
+============================================================ */
+let state = {
+  saldoGlobal: 0,
+  carteras: [],
+  movimientos: [],
+  espejoGlobal: [],
+  config: { umbralWarn: 80, umbralDanger: 100 },
+  nextCarteraId: 1,
+  nextMovId: 1,
+  nextEspejoId: 1
+};
+
+let chartPastel, chartSemana, chartTiempo, chartComparativa;
+let carteraActivaParaInsertar = null;
+let ticketActual = null;
+
+/* ============================================================
+   PERSISTENCIA
+============================================================ */
+function guardar(){
+  localStorage.setItem('gestorGastos_v3', JSON.stringify(state));
+}
+function cargar(){
+  const data = localStorage.getItem('gestorGastos_v3');
+  if(data){
+    try{
+      const p = JSON.parse(data);
+      state = Object.assign(state, p);
+      state.config = state.config || { umbralWarn: 80, umbralDanger: 100 };
+    }catch(e){ console.warn('Error cargando', e); }
+  }
+}
+
+/* ============================================================
+   UTILIDADES
+============================================================ */
+function hoy(){ return new Date().toISOString().slice(0,10); }
+function diaSemanaHoy(){
+  const d = new Date().getDay();
+  return ['dom','lun','mar','mie','jue','vie','sab'][d];
+}
+function fmt$(n){ return '$' + (Number(n)||0).toFixed(2); }
+function esc(s){ return String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function calcularRangoActual(dias){
+  if(!dias || dias.length === 0) return {inicio:'—', fin:'—'};
+  const hoyDate = new Date();
+  const idxHoy = DIAS_ORDEN.indexOf(diaSemanaHoy());
+  const diasIdx = dias.map(d => DIAS_ORDEN.indexOf(d)).sort((a,b)=>a-b);
+
+  let startOffset = 0;
+  for(let i=0;i<7;i++){
+    const check = (idxHoy - i + 7) % 7;
+    if(diasIdx.includes(check)){ startOffset = i; break; }
+  }
+  const inicio = new Date(hoyDate);
+  inicio.setDate(inicio.getDate() - startOffset);
+
+  let endOffset = 0;
+  for(let i=0;i<7;i++){
+    const check = (idxHoy + i) % 7;
+    if(diasIdx.includes(check)){ endOffset = i; break; }
+  }
+  const fin = new Date(hoyDate);
+  fin.setDate(fin.getDate() + endOffset);
+
+  return {
+    inicio: inicio.toISOString().slice(0,10),
+    fin: fin.toISOString().slice(0,10)
+  };
+}
+
+/* ============================================================
+   CARTERAS
+============================================================ */
+function crearCartera(){
+  const nombre = document.getElementById('nuevaNombre').value.trim();
+  const icono = document.getElementById('nuevoIcono').value.trim() || '📁';
+  const color = document.getElementById('nuevoColor').value;
+  const aproximado = parseFloat(document.getElementById('nuevoAproximado').value) || 0;
+  const saldoInicial = parseFloat(document.getElementById('nuevoSaldoInicial').value) || 0;
+  const dias = Array.from(document.querySelectorAll('#diasPicker input:checked')).map(i=>i.value);
+
+  if(!nombre){ toast('Nombre obligatorio','danger'); return; }
+  if(dias.length === 0){ toast('Elige al menos un día','danger'); return; }
+  if(saldoInicial < 0){ toast('Saldo inicial inválido','danger'); return; }
+  if(saldoInicial > state.saldoGlobal){
+    toast(`Saldo global insuficiente (disponible: ${fmt$(state.saldoGlobal)})`,'danger');
+    return;
+  }
+
+  const id = state.nextCarteraId++;
+  state.carteras.push({
+    id, nombre, icono, color, aproximado, dias,
+    saldo: saldoInicial, creada: hoy(), espejo: []
+  });
+
+  if(saldoInicial > 0){
+    state.saldoGlobal -= saldoInicial;
+    state.movimientos.push({
+      id: state.nextMovId++,
+      carteraId: id,
+      tipo: 'transferencia_in',
+      monto: saldoInicial,
+      desc: `Saldo inicial a ${nombre}`,
+      fecha: hoy(), dia: diaSemanaHoy()
+    });
+    state.movimientos.push({
+      id: state.nextMovId++,
+      carteraId: GLOBAL_ID,
+      tipo: 'transferencia_out',
+      monto: saldoInicial,
+      desc: `Saldo inicial → ${nombre}`,
+      fecha: hoy(), dia: diaSemanaHoy()
+    });
+  }
+
+  guardar(); renderAll();
+  toast(`Cartera "${nombre}" creada con ${fmt$(saldoInicial)}`,'success');
+
+  document.getElementById('nuevaNombre').value = '';
+  document.getElementById('nuevoAproximado').value = '';
+  document.getElementById('nuevoSaldoInicial').value = '';
+  document.querySelectorAll('#diasPicker input:checked').forEach(i=>i.checked=false);
+}
+
+function editarCartera(id){
+  const c = state.carteras.find(x=>x.id===id);
+  if(!c) return;
+  document.getElementById('editId').value = c.id;
+  document.getElementById('editNombre').value = c.nombre;
+  document.getElementById('editIcono').value = c.icono;
+  document.getElementById('editColor').value = c.color;
+  document.getElementById('editAproximado').value = c.aproximado;
+  document.getElementById('editSaldo').value = c.saldo;
+  document.querySelectorAll('#editDiasPicker input').forEach(i=>{
+    i.checked = c.dias.includes(i.value);
+  });
+  document.getElementById('modalEditar').classList.add('active');
+}
+
+function confirmarEditar(){
+  const id = parseInt(document.getElementById('editId').value);
+  const c = state.carteras.find(x=>x.id===id);
+  if(!c) return;
+  const dias = Array.from(document.querySelectorAll('#editDiasPicker input:checked')).map(i=>i.value);
+  if(dias.length === 0){ toast('Elige al menos un día','danger'); return; }
+
+  const nuevoSaldo = parseFloat(document.getElementById('editSaldo').value);
+  if(!isNaN(nuevoSaldo) && nuevoSaldo >= 0){
+    c.saldo = nuevoSaldo;
+  }
+
+  c.nombre = document.getElementById('editNombre').value.trim() || c.nombre;
+  c.icono = document.getElementById('editIcono').value.trim() || c.icono;
+  c.color = document.getElementById('editColor').value;
+  c.aproximado = parseFloat(document.getElementById('editAproximado').value) || 0;
+  c.dias = dias;
+
+  cerrarModal('modalEditar');
+  guardar(); renderAll();
+  toast('Cartera actualizada','success');
+}
+
+function eliminarCartera(id){
+  const c = state.carteras.find(x=>x.id===id);
+  if(!c) return;
+  const msg = c.saldo > 0
+    ? `¿Eliminar "${c.nombre}"? Su saldo de ${fmt$(c.saldo)} volverá a la Global.`
+    : `¿Eliminar "${c.nombre}"?`;
+  if(!confirm(msg)) return;
+
+  if(c.saldo > 0){
+    state.saldoGlobal += c.saldo;
+    state.movimientos.push({
+      id: state.nextMovId++,
+      carteraId: GLOBAL_ID,
+      tipo: 'transferencia_in',
+      monto: c.saldo,
+      desc: `Devolución de ${c.nombre} (eliminada)`,
+      fecha: hoy(), dia: diaSemanaHoy()
+    });
+  }
+  state.carteras = state.carteras.filter(x=>x.id!==id);
+  guardar(); renderAll();
+  toast('Cartera eliminada','success');
+}
+
+function calcularGastadoRango(cartera){
+  return state.movimientos
+    .filter(m => m.carteraId === cartera.id && m.tipo === 'gasto' && cartera.dias.includes(m.dia))
+    .reduce((s,m)=>s+m.monto, 0);
+}
+
+/* ============================================================
+   GASTOS — FIX PRINCIPAL
+============================================================ */
+function abrirModalInsertar(carteraId){
+  // Asegurar tipo numérico
+  carteraId = parseInt(carteraId);
+  const c = state.carteras.find(x=>x.id===carteraId);
+  if(!c){ toast('Cartera no encontrada','danger'); return; }
+
+  carteraActivaParaInsertar = carteraId;
+  document.getElementById('modalInsertarTitulo').textContent =
+    `Insertar gasto en ${c.icono} ${c.nombre}`;
+  document.getElementById('modalSaldoDisponible').textContent = fmt$(c.saldo);
+  document.getElementById('insertMonto').value = '';
+  document.getElementById('insertDesc').value = '';
+  document.getElementById('modalInsertar').classList.add('active');
+  setTimeout(()=>document.getElementById('insertMonto').focus(),100);
+}
+
+function confirmarInsertar(){
+  const monto = parseFloat(document.getElementById('insertMonto').value);
+  const desc = document.getElementById('insertDesc').value.trim();
+
+  if(!monto || monto <= 0){ toast('Monto inválido','danger'); return; }
+
+  const c = state.carteras.find(x=>x.id===carteraActivaParaInsertar);
+  if(!c){ toast('Cartera no encontrada','danger'); return; }
+
+  // FIX: comparar contra el saldo REAL de la cartera
+  if(monto > c.saldo){
+    toast(`Saldo insuficiente en ${c.nombre}. Disponible: ${fmt$(c.saldo)}`,'danger');
+    return;
+  }
+
+  c.saldo -= monto;
+  state.movimientos.push({
+    id: state.nextMovId++,
+    carteraId: c.id, tipo:'gasto',
+    monto, desc, fecha: hoy(), dia: diaSemanaHoy()
+  });
+
+  const gastado = calcularGastadoRango(c);
+  const pct = c.aproximado > 0 ? (gastado / c.aproximado) * 100 : 0;
+  if(pct >= state.config.umbralDanger) toast(`🚨 ${c.nombre}: excedido (${pct.toFixed(0)}%)`,'danger');
+  else if(pct >= state.config.umbralWarn) toast(`⚠️ ${c.nombre}: cerca del límite (${pct.toFixed(0)}%)`,'warn');
+  else toast(`Gasto de ${fmt$(monto)} en ${c.nombre}`,'success');
+
+  cerrarModal('modalInsertar');
+  guardar(); renderAll();
+}
+
+function eliminarMovimiento(id){
+  if(!confirm('¿Eliminar este movimiento?')) return;
+  const m = state.movimientos.find(x=>x.id===id);
+  if(!m) return;
+
+  if(m.tipo === 'gasto'){
+    const c = state.carteras.find(x=>x.id===m.carteraId);
+    if(c) c.saldo += m.monto;
+  } else if(m.tipo === 'deposito'){
+    state.saldoGlobal -= m.monto;
+  } else if(m.tipo === 'retiro'){
+    state.saldoGlobal += m.monto;
+  } else if(m.tipo === 'transferencia_in'){
+    if(m.carteraId === 0) state.saldoGlobal -= m.monto;
+    else {
+      const c = state.carteras.find(x=>x.id===m.carteraId);
+      if(c) c.saldo -= m.monto;
+    }
+  } else if(m.tipo === 'transferencia_out'){
+    if(m.carteraId === 0) state.saldoGlobal += m.monto;
+    else {
+      const c = state.carteras.find(x=>x.id===m.carteraId);
+      if(c) c.saldo += m.monto;
+    }
+  }
+
+  state.movimientos = state.movimientos.filter(x=>x.id!==id);
+  guardar(); renderAll();
+  toast('Movimiento eliminado','success');
+}
+
+/* ============================================================
+   DEPÓSITO / RETIRO / TRANSFERENCIA
+============================================================ */
+function abrirModalDeposito(){
+  document.getElementById('depMonto').value = '';
+  document.getElementById('depDesc').value = '';
+  document.getElementById('modalDeposito').classList.add('active');
+  setTimeout(()=>document.getElementById('depMonto').focus(),100);
+}
+function confirmarDeposito(){
+  const monto = parseFloat(document.getElementById('depMonto').value);
+  const desc = document.getElementById('depDesc').value.trim();
+  if(!monto || monto<=0){ toast('Monto inválido','danger'); return; }
+  state.saldoGlobal += monto;
+  state.movimientos.push({
+    id: state.nextMovId++,
+    carteraId: GLOBAL_ID, tipo:'deposito',
+    monto, desc, fecha: hoy(), dia: diaSemanaHoy()
+  });
+  cerrarModal('modalDeposito');
+  guardar(); renderAll();
+  toast(`Depósito de ${fmt$(monto)}`,'success');
+}
+
+function abrirModalRetiro(){
+  document.getElementById('retMonto').value = '';
+  document.getElementById('retDesc').value = '';
+  document.getElementById('modalRetiro').classList.add('active');
+  setTimeout(()=>document.getElementById('retMonto').focus(),100);
+}
+function confirmarRetiro(){
+  const monto = parseFloat(document.getElementById('retMonto').value);
+  const desc = document.getElementById('retDesc').value.trim();
+  if(!monto || monto<=0){ toast('Monto inválido','danger'); return; }
+  if(monto > state.saldoGlobal){ toast('Saldo global insuficiente','danger'); return; }
+  state.saldoGlobal -= monto;
+  state.movimientos.push({
+    id: state.nextMovId++,
+    carteraId: GLOBAL_ID, tipo:'retiro',
+    monto, desc, fecha: hoy(), dia: diaSemanaHoy()
+  });
+  cerrarModal('modalRetiro');
+  guardar(); renderAll();
+  toast(`Retiro de ${fmt$(monto)}`,'success');
+}
+
+function abrirModalTransferir(){
+  const o = document.getElementById('transOrigen');
+  const d = document.getElementById('transDestino');
+  const globalOpt = `<option value="0">🌐 Global (${fmt$(state.saldoGlobal)})</option>`;
+  const hijasOpts = state.carteras.map(c =>
+    `<option value="${c.id}">${c.icono} ${esc(c.nombre)} (${fmt$(c.saldo)})</option>`
+  ).join('');
+  o.innerHTML = globalOpt + hijasOpts;
+  d.innerHTML = globalOpt + hijasOpts;
+  document.getElementById('transMonto').value = '';
+  document.getElementById('modalTransferir').classList.add('active');
+}
+
+function confirmarTransferencia(){
+  const oId = parseInt(document.getElementById('transOrigen').value);
+  const dId = parseInt(document.getElementById('transDestino').value);
+  const monto = parseFloat(document.getElementById('transMonto').value);
+
+  if(oId === dId){ toast('Origen y destino iguales','danger'); return; }
+  if(!monto || monto<=0){ toast('Monto inválido','danger'); return; }
+
+  const getCartera = (id) => {
+    if(id === 0) return {id:0, nombre:'Global', icono:'🌐', saldo:state.saldoGlobal};
+    return state.carteras.find(c=>c.id===id);
+  };
+  const o = getCartera(oId);
+  const d = getCartera(dId);
+  if(!o || !d) return;
+  if(o.saldo < monto){ toast('Saldo insuficiente en origen','danger'); return; }
+
+  if(oId === 0) state.saldoGlobal -= monto;
+  else o.saldo -= monto;
+
+  if(dId === 0) state.saldoGlobal += monto;
+  else d.saldo += monto;
+
+  state.movimientos.push({
+    id: state.nextMovId++,
+    carteraId: dId, tipo:'transferencia_in',
+    monto, desc:`Desde ${o.nombre}`,
+    fecha: hoy(), dia: diaSemanaHoy()
+  });
+  state.movimientos.push({
+    id: state.nextMovId++,
+    carteraId: oId, tipo:'transferencia_out',
+    monto, desc:`Hacia ${d.nombre}`,
+    fecha: hoy(), dia: diaSemanaHoy()
+  });
+
+  cerrarModal('modalTransferir');
+  guardar(); renderAll();
+  toast(`Transferido ${fmt$(monto)} → ${d.nombre}`,'success');
+}
+
+/* ============================================================
+   ESPEJO
+============================================================ */
+function abrirModalEspejo(carteraId){
+  carteraId = parseInt(carteraId);
+  const c = state.carteras.find(x=>x.id===carteraId);
+  if(!c) return;
+  document.getElementById('espejoCarteraId').value = c.id;
+  document.getElementById('modalEspejoTitulo').textContent = `🪞 Espejo: ${c.icono} ${c.nombre}`;
+  document.getElementById('espejoMonto').value = '';
+  document.getElementById('espejoDesc').value = '';
+  document.getElementById('modalEspejoCartera').classList.add('active');
+  setTimeout(()=>document.getElementById('espejoMonto').focus(),100);
+}
+
+function confirmarEspejo(){
+  const carteraId = parseInt(document.getElementById('espejoCarteraId').value);
+  const monto = parseFloat(document.getElementById('espejoMonto').value);
+  const dia = document.getElementById('espejoDia').value;
+  const desc = document.getElementById('espejoDesc').value.trim();
+
+  if(!monto || monto<=0){ toast('Monto inválido','danger'); return; }
+
+  const c = state.carteras.find(x=>x.id===carteraId);
+  if(!c) return;
+
+  c.espejo = c.espejo || [];
+  c.espejo.push({
+    id: state.nextEspejoId++,
+    monto, dia, desc
+  });
+
+  cerrarModal('modalEspejoCartera');
+  guardar(); renderAll();
+  toast('Planeación añadida','success');
+}
+
+function eliminarEspejo(carteraId, espejoId){
+  const c = state.carteras.find(x=>x.id===carteraId);
+  if(!c) return;
+  c.espejo = c.espejo.filter(e=>e.id!==espejoId);
+  guardar(); renderAll();
+}
+
+function agregarEspejoGlobal(){
+  const monto = parseFloat(document.getElementById('espejoGlobalMonto').value);
+  const dia = document.getElementById('espejoGlobalDia').value;
+  const desc = document.getElementById('espejoGlobalDesc').value.trim();
+
+  if(!monto || monto<=0){ toast('Monto inválido','danger'); return; }
+
+  state.espejoGlobal.push({
+    id: state.nextEspejoId++,
+    monto, dia, desc
+  });
+
+  guardar(); renderAll();
+  toast('Planeación global añadida','success');
+  document.getElementById('espejoGlobalMonto').value = '';
+  document.getElementById('espejoGlobalDesc').value = '';
+}
+
+function eliminarEspejoGlobal(id){
+  state.espejoGlobal = state.espejoGlobal.filter(e=>e.id!==id);
+  guardar(); renderAll();
+}
+
+/* ============================================================
+   TICKET
+============================================================ */
+function generarTicket(carteraId){
+  carteraId = parseInt(carteraId);
+  const c = state.carteras.find(x=>x.id===carteraId);
+  if(!c) return;
+
+  const rango = calcularRangoActual(c.dias);
+  const movs = state.movimientos.filter(m =>
+    m.carteraId === c.id && m.tipo === 'gasto' && c.dias.includes(m.dia)
+  );
+
+  const total = movs.reduce((s,m)=>s+m.monto,0);
+  const diff = c.aproximado - total;
+
+  let texto = '';
+  texto += '════════════════════════════════════════\n';
+  texto += `      🎫 TICKET — ${c.icono} ${c.nombre}\n`;
+  texto += `   Días: ${c.dias.map(d=>DIAS_LABEL[d]).join(', ')}\n`;
+  texto += `   Rango: ${rango.inicio} → ${rango.fin}\n`;
+  texto += '════════════════════════════════════════\n';
+  texto += 'Fecha    Día   Descripción           Monto\n';
+  texto += '────────────────────────────────────────\n';
+
+  if(movs.length === 0){
+    texto += '  (Sin gastos en el rango)\n';
+  } else {
+    movs.forEach(m=>{
+      const fecha = m.fecha.split('-').reverse().join('/');
+      const dia = DIAS_LABEL[m.dia] || '';
+      const desc = (m.desc || '—').padEnd(20).slice(0,20);
+      texto += `${fecha}  ${dia}   ${desc} ${fmt$(m.monto).padStart(9)}\n`;
+    });
+  }
+
+  texto += '────────────────────────────────────────\n';
+  texto += `TOTAL:                        ${fmt$(total)}\n`;
+  texto += `APROXIMADO:                   ${fmt$(c.aproximado)}\n`;
+  texto += `DIFERENCIA:                   ${diff>=0?'+':''}${fmt$(diff)} ${diff>=0?'✅':'⚠️'}\n`;
+  texto += '════════════════════════════════════════\n';
+  texto += `Generado: ${new Date().toLocaleString()}\n`;
+
+  ticketActual = {cartera: c, texto, archivo: `ticket_${c.nombre}_${rango.inicio}.txt`};
+  document.getElementById('ticketPreview').textContent = texto;
+  document.getElementById('modalTicket').classList.add('active');
+}
+
+function descargarTicket(){
+  if(!ticketActual) return;
+  const blob = new Blob([ticketActual.texto], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = ticketActual.archivo; a.click();
+  URL.revokeObjectURL(url);
+  toast('Ticket descargado','success');
+}
+
+function descargarTicketPDF(){
+  if(!ticketActual) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text(`Ticket - ${ticketActual.cartera.nombre}`, 14, 20);
+  doc.setFontSize(9);
+  doc.setFont('courier');
+  const lineas = doc.splitTextToSize(ticketActual.texto, 180);
+  doc.text(lineas, 14, 30);
+  doc.save(ticketActual.archivo.replace('.txt','.pdf'));
+  toast('PDF descargado','success');
+}
+
+/* ============================================================
+   CONFIG / BACKUP
+============================================================ */
+function guardarConfig(){
+  state.config.umbralWarn = parseInt(document.getElementById('cfgWarn').value) || 80;
+  state.config.umbralDanger = parseInt(document.getElementById('cfgDanger').value) || 100;
+  guardar();
+  toast('Configuración guardada','success');
+}
+
+function exportarJSON(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `gestor_backup_${hoy()}.json`; a.click();
+  URL.revokeObjectURL(url);
+  toast('Backup exportado','success');
+}
+
+function importarJSON(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const data = JSON.parse(e.target.result);
+      state = Object.assign(state, data);
+      guardar(); renderAll();
+      toast('Datos importados','success');
+    }catch(err){ toast('Archivo inválido','danger'); }
+  };
+  reader.readAsText(file);
+}
+
+function borrarTodo(){
+  if(!confirm('⚠️ ¿Borrar TODOS los datos?')) return;
+  localStorage.removeItem('gestorGastos_v3');
+  location.reload();
+}
+
+function exportarCSV(){
+  let csv = 'Fecha,Dia,Cartera,Tipo,Descripcion,Monto\n';
+  state.movimientos.forEach(m=>{
+    const c = state.carteras.find(x=>x.id===m.carteraId);
+    const nombre = m.carteraId === 0 ? 'Global' : (c ? c.nombre : '—');
+    csv += `${m.fecha},${m.dia},${nombre},${m.tipo},"${(m.desc||'').replace(/"/g,'""')}",${m.monto}\n`;
+  });
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `movimientos_${hoy()}.csv`; a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV exportado','success');
+}
+
+/* ============================================================
+   MODALES / TOASTS / TABS
+============================================================ */
+function cerrarModal(id){ document.getElementById(id).classList.remove('active'); }
+function toast(msg, tipo='info'){
+  const div = document.createElement('div');
+  div.className = `toast ${tipo}`;
+  div.textContent = msg;
+  document.getElementById('toastContainer').appendChild(div);
+  setTimeout(()=>{ div.style.opacity='0'; setTimeout(()=>div.remove(),300); }, 3500);
+}
+function cambiarTab(view){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.view===view));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id === 'view-'+view));
+  if(view === 'graficos') setTimeout(renderAllCharts, 50);
+  if(view === 'dashboard') setTimeout(()=>{ renderChartPastel(); renderChartSemana(); }, 50);
+}
+
+/* ============================================================
+   RENDER
+============================================================ */
+function renderAll(){
+  renderGlobal();
+  renderCarteras();
+  renderEspejoGlobal();
+  renderMovimientos();
+  renderStats();
+  renderSelects();
+  renderChartPastel();
+  renderChartSemana();
+}
+
+function renderGlobal(){
+  document.getElementById('globalBalance').textContent = fmt$(state.saldoGlobal);
+  const el = document.getElementById('globalBigBalance');
+  if(el) el.textContent = fmt$(state.saldoGlobal);
+  const elForm = document.getElementById('globalDisponibleForm');
+  if(elForm) elForm.textContent = fmt$(state.saldoGlobal);
+}
+
+function renderStats(){
+  const totalGastado = state.movimientos.filter(m=>m.tipo==='gasto').reduce((s,m)=>s+m.monto,0);
+  const sumaCarteras = state.carteras.reduce((s,c)=>s+c.saldo,0);
+  let totalPlaneado = state.espejoGlobal.reduce((s,e)=>s+e.monto,0);
+  state.carteras.forEach(c => {
+    totalPlaneado += (c.espejo||[]).reduce((s,e)=>s+e.monto,0);
+  });
+
+  document.getElementById('statGlobal').textContent = fmt$(state.saldoGlobal);
+  document.getElementById('statCarteras').textContent = fmt$(sumaCarteras);
+  document.getElementById('statPatrimonio').textContent = fmt$(state.saldoGlobal + sumaCarteras);
+  document.getElementById('statGastado').textContent = fmt$(totalGastado);
+  document.getElementById('statPlaneado').textContent = fmt$(totalPlaneado);
+  const diff = totalPlaneado - totalGastado;
+  const el = document.getElementById('statDiferencia');
+  el.textContent = (diff>=0?'+':'') + fmt$(diff);
+  el.className = 'value ' + (diff>=0?'green':'red');
+}
+
+function renderCarteras(){
+  const lista = document.getElementById('carterasList');
+  document.getElementById('countCarteras').textContent = state.carteras.length;
+  if(state.carteras.length === 0){
+    lista.innerHTML = '<div class="empty-state">Sin carteras todavía</div>';
+    return;
+  }
+  lista.innerHTML = state.carteras.map(c=>{
+    const gastado = calcularGastadoRango(c);
+    const pct = c.aproximado > 0 ? Math.min((gastado/c.aproximado)*100, 100) : 0;
+    const cls = pct>=state.config.umbralDanger?'danger':pct>=state.config.umbralWarn?'warn':'';
+    const rango = calcularRangoActual(c.dias);
+    const planeado = (c.espejo||[]).reduce((s,e)=>s+e.monto,0);
+    const difEsp = planeado - gastado;
+    const sinSaldo = c.saldo <= 0;
+
+    return `
+      <div class="cartera-item">
+        <div class="cartera-header">
+          <div class="cartera-nombre"><span>${c.icono}</span> ${esc(c.nombre)}</div>
+          <div style="display:flex;gap:6px">
+            <button class="secondary sm" onclick="editarCartera(${c.id})">✏️</button>
+            <button class="danger sm" onclick="eliminarCartera(${c.id})">✕</button>
+          </div>
+        </div>
+        <div class="cartera-dias">
+          ${c.dias.map(d=>`<span class="dia-tag">${DIAS_LABEL[d]}</span>`).join('')}
+        </div>
+        <div style="margin-top:8px;font-size:.75rem;color:var(--muted)">
+          Rango: ${rango.inicio} → ${rango.fin}
+        </div>
+        <div class="cartera-saldos" style="margin-top:8px">
+          <span>Gastado: <strong>${fmt$(gastado)}</strong></span>
+          <span>Aprox: <strong>${fmt$(c.aproximado)}</strong></span>
+        </div>
+        <div class="progress">
+          <div class="progress-bar ${cls}" style="width:${pct}%;${cls?'':'background:'+c.color}"></div>
+        </div>
+        <div class="cartera-saldos">
+          <span>Saldo: <strong style="color:${sinSaldo?'var(--danger)':'var(--text)'}">${fmt$(c.saldo)}</strong></span>
+          <span>${pct.toFixed(0)}%</span>
+        </div>
+        ${planeado > 0 ? `
+        <div class="cartera-saldos" style="font-size:.78rem">
+          <span>🪞 Planeado: <strong style="color:var(--espejo)">${fmt$(planeado)}</strong></span>
+          <span style="color:${difEsp>=0?'var(--accent-2)':'var(--danger)'}">
+            ${difEsp>=0?'+':''}${fmt$(difEsp)}
+          </span>
+        </div>` : ''}
+        <div class="cartera-actions">
+          <button class="success sm" onclick="abrirModalInsertar(${c.id})" ${sinSaldo?'disabled':''}>+ Gasto</button>
+          <button class="espejo sm" onclick="abrirModalEspejo(${c.id})">🪞 Espejo</button>
+          <button class="secondary sm" onclick="generarTicket(${c.id})">🎫</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderEspejoGlobal(){
+  const cont = document.getElementById('espejoGlobalLista');
+  if(!cont) return;
+  if(state.espejoGlobal.length === 0){
+    cont.innerHTML = '<div class="empty-state" style="padding:16px">Sin planeaciones globales</div>';
+  } else {
+    cont.innerHTML = `<div class="espejo-lista">` + state.espejoGlobal.map(e=>`
+      <div class="item">
+        <span>${DIAS_LABEL[e.dia]||''} · ${esc(e.desc||'—')}</span>
+        <span style="display:flex;gap:8px;align-items:center">
+          <strong>${fmt$(e.monto)}</strong>
+          <button class="danger sm" onclick="eliminarEspejoGlobal(${e.id})" style="padding:2px 6px;font-size:.7rem">✕</button>
+        </span>
+      </div>
+    `).join('') + `</div>`;
+  }
+  const total = state.espejoGlobal.reduce((s,e)=>s+e.monto,0);
+  const el = document.getElementById('espejoGlobalTotal');
+  if(el) el.textContent = fmt$(total);
+}
+
+function renderMovimientos(){
+  const tbody = document.getElementById('movimientosBody');
+  const q = (document.getElementById('filtroBusqueda').value || '').toLowerCase();
+  const carteraFiltro = document.getElementById('filtroCartera').value;
+  const tipoFiltro = document.getElementById('filtroTipo').value;
+  const desde = document.getElementById('filtroDesde').value;
+  const hasta = document.getElementById('filtroHasta').value;
+
+  let movs = [...state.movimientos].reverse();
+
+  if(q) movs = movs.filter(m => (m.desc||'').toLowerCase().includes(q));
+  if(carteraFiltro !== '') movs = movs.filter(m => String(m.carteraId) === carteraFiltro);
+  if(tipoFiltro) movs = movs.filter(m => m.tipo === tipoFiltro);
+  if(desde) movs = movs.filter(m => m.fecha >= desde);
+  if(hasta) movs = movs.filter(m => m.fecha <= hasta);
+
+  if(movs.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Sin movimientos</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = movs.map(m=>{
+    const c = state.carteras.find(x=>x.id===m.carteraId);
+    const carteraNombre = m.carteraId === 0 ? '🌐 Global' : (c ? `${c.icono} ${esc(c.nombre)}` : '—');
+    const signo = (m.tipo==='deposito'||m.tipo==='transferencia_in') ? '+' :
+                  (m.tipo==='gasto'||m.tipo==='retiro'||m.tipo==='transferencia_out') ? '-' : '';
+    const color = (m.tipo==='gasto'||m.tipo==='retiro'||m.tipo==='transferencia_out')
+                  ? 'var(--danger)' : 'var(--accent-2)';
+    return `
+      <tr>
+        <td>${m.fecha}</td>
+        <td>${DIAS_LABEL[m.dia]||''}</td>
+        <td>${carteraNombre}</td>
+        <td><span class="badge">${m.tipo}</span></td>
+        <td>${esc(m.desc||'—')}</td>
+        <td class="td-monto" style="color:${color}">${signo}${fmt$(m.monto)}</td>
+        <td class="td-acciones">
+          <button class="danger sm" onclick="eliminarMovimiento(${m.id})">✕</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderSelects(){
+  const optsHijas = state.carteras.map(c=>`<option value="${c.id}">${c.icono} ${esc(c.nombre)}</option>`).join('');
+
+  const filtroCartera = document.getElementById('filtroCartera');
+  const val = filtroCartera.value;
+  filtroCartera.innerHTML = `<option value="">Todas</option><option value="0">🌐 Global</option>${optsHijas}`;
+  filtroCartera.value = val;
+
+  document.getElementById('chartCarteraFiltro').innerHTML =
+    `<option value="">Todas las carteras</option>${optsHijas}`;
+}
+
+/* ============================================================
+   GRÁFICOS
+============================================================ */
+function renderChartPastel(){
+  const ctx = document.getElementById('chartPastel');
+  if(!ctx) return;
+  const labels = state.carteras.map(c=>c.nombre);
+  const data = state.carteras.map(c=>calcularGastadoRango(c));
+  const colors = state.carteras.map(c=>c.color);
+
+  if(chartPastel) chartPastel.destroy();
+  chartPastel = new Chart(ctx, {
+    type:'doughnut',
+    data:{
+      labels: labels.length ? labels : ['Sin datos'],
+      datasets:[{
+        data: data.length ? data : [1],
+        backgroundColor: colors.length ? colors : ['#2a2f3f'],
+        borderWidth: 0
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{color:'#e6e8ee',padding:14}}}
+    }
+  });
+}
+
+function renderChartSemana(){
+  const ctx = document.getElementById('chartSemana');
+  if(!ctx) return;
+  const totales = DIAS_ORDEN.map(d => {
+    return state.movimientos
+      .filter(m => m.tipo === 'gasto' && m.dia === d)
+      .reduce((s,m)=>s+m.monto, 0);
+  });
+
+  if(chartSemana) chartSemana.destroy();
+  chartSemana = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: DIAS_ORDEN.map(d=>DIAS_LABEL[d]),
+      datasets:[{label:'Gasto', data:totales, backgroundColor:'#4f8cff', borderRadius:6}]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#8b90a0'}, grid:{display:false}},
+        y:{ticks:{color:'#8b90a0'}, grid:{color:'#2a2f3f'}}
+      }
+    }
+  });
+}
+
+function renderAllCharts(){
+  const ctxT = document.getElementById('chartTiempo');
+  const ctxC = document.getElementById('chartComparativa');
+  if(!ctxT || !ctxC) return;
+
+  const carteraFiltro = document.getElementById('chartCarteraFiltro').value;
+  const escala = document.getElementById('chartEscala').value;
+
+  let movs = state.movimientos.filter(m=>m.tipo==='gasto');
+  if(carteraFiltro) movs = movs.filter(m=>String(m.carteraId)===carteraFiltro);
+
+  const grupos = {};
+  if(escala === 'diaSemana'){
+    DIAS_ORDEN.forEach(d=>grupos[DIAS_LABEL[d]]=0);
+    movs.forEach(m=>{ if(grupos[DIAS_LABEL[m.dia]] !== undefined) grupos[DIAS_LABEL[m.dia]] += m.monto; });
+  } else if(escala === 'dia'){
+    movs.forEach(m=>{
+      const dia = m.fecha.slice(8,10);
+      grupos[dia] = (grupos[dia]||0) + m.monto;
+    });
+  } else if(escala === 'mes'){
+    movs.forEach(m=>{
+      const mes = m.fecha.slice(0,7);
+      grupos[mes] = (grupos[mes]||0) + m.monto;
+    });
+  }
+  const labels = Object.keys(grupos).sort();
+  const data = labels.map(l=>grupos[l]);
+
+  if(chartTiempo) chartTiempo.destroy();
+  chartTiempo = new Chart(ctxT, {
+    type:'line',
+    data:{labels, datasets:[{
+      label:'Gasto', data, borderColor:'#4f8cff',
+      backgroundColor:'rgba(79,140,255,0.15)',
+      fill:true, tension:.3, pointRadius:3
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#8b90a0'},grid:{display:false}},
+        y:{ticks:{color:'#8b90a0'},grid:{color:'#2a2f3f'}}
+      }
+    }
+  });
+
+  const real = state.carteras.map(c=>calcularGastadoRango(c));
+  const planeado = state.carteras.map(c =>
+    (c.espejo||[]).reduce((s,e)=>s+e.monto,0)
+  );
+  const nombres = state.carteras.map(c=>c.nombre);
+
+  if(chartComparativa) chartComparativa.destroy();
+  chartComparativa = new Chart(ctxC, {
+    type:'bar',
+    data:{
+      labels: nombres.length ? nombres : ['Sin datos'],
+      datasets:[
+        {label:'Real', data: real, backgroundColor:'#4f8cff', borderRadius:6},
+        {label:'Planeado', data: planeado, backgroundColor:'#a855f7', borderRadius:6}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#e6e8ee'}}},
+      scales:{
+        x:{ticks:{color:'#8b90a0'},grid:{display:false}},
+        y:{ticks:{color:'#8b90a0'},grid:{color:'#2a2f3f'}}
+      }
+    }
+  });
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>cambiarTab(t.dataset.view));
+});
+document.querySelectorAll('.modal').forEach(m=>{
+  m.addEventListener('click', e=>{ if(e.target === m) m.classList.remove('active'); });
+});
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape') document.querySelectorAll('.modal.active').forEach(m=>m.classList.remove('active'));
+});
+
+cargar();
+document.getElementById('cfgWarn').value = state.config.umbralWarn;
+document.getElementById('cfgDanger').value = state.config.umbralDanger;
+renderAll();
+</script>
+</body>
+</html>
